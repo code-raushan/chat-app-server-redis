@@ -13,10 +13,15 @@ const CORS_ORIGIN = process.env.CORS_ORIGIN || "http://localhost:3000";
 const REDIS_ENDPOINT = process.env.REDIS_ENDPOINT;
 
 const CONNECTION_COUNT_KEY="chat:connection-count";
-const CONNECTION_COUNT_UPDATED_CHANNEL = 'chat:connection-count-updated';
+const CONNECTION_COUNT_UPDATE_CHANNEL = 'chat:connection-count-updated';
+
+const NEW_MESSAGE_CHANNEL= "chat:new-message";
+
+
 
 
 import { Redis } from 'ioredis';
+import { randomUUID } from 'crypto';
 
 if(!REDIS_ENDPOINT){
     console.error('Missing REDIS URL ENDPOINT');
@@ -52,26 +57,58 @@ async function buildServer(){
 
         connectedClients++;
 
-        await publisher.publish(CONNECTION_COUNT_UPDATED_CHANNEL, String(incrResult));
+        await publisher.publish(CONNECTION_COUNT_UPDATE_CHANNEL, String(incrResult));
+
+        io.on(NEW_MESSAGE_CHANNEL, async (payload)=>{
+            const message = payload.message;
+
+            if(!message){
+                return;
+            }
+            console.log("message ", message);
+            await publisher.publish(NEW_MESSAGE_CHANNEL, message.toString());
+        })
 
         io.on('disconnect', async (io)=>{
             connectedClients--;
             console.log('Client Disconnected');
             const decrResult = await publisher.decr(CONNECTION_COUNT_KEY);
-            await publisher.publish(CONNECTION_COUNT_UPDATED_CHANNEL, String(decrResult));
+            await publisher.publish(CONNECTION_COUNT_UPDATE_CHANNEL, String(decrResult));
         });
     });
 
-    subscriber.subscribe(CONNECTION_COUNT_UPDATED_CHANNEL, (err, count)=>{
+    subscriber.subscribe(CONNECTION_COUNT_UPDATE_CHANNEL, (err, count)=>{
         if(err){
-            console.error(`Error subscribing to ${CONNECTION_COUNT_UPDATED_CHANNEL}`);
+            console.error(`Error subscribing to ${CONNECTION_COUNT_UPDATE_CHANNEL} channel`);
             return;
         };
-        console.log(`${count} clients connected to ${CONNECTION_COUNT_UPDATED_CHANNEL}`)
-    }); 
+        console.log(`The client is subscribed to ${count} channels`);
+    });
+    subscriber.subscribe(NEW_MESSAGE_CHANNEL, (err, count)=>{
+        if(err){
+            console.error(`Error subscribing to ${NEW_MESSAGE_CHANNEL}`);
+            return;
+        };
+        console.log(`The client is subscribed to ${count} channels`);
+    })
 
-    subscriber.on('message', (channel, message)=>{
-        console.log(`Recieved ${message} from ${channel}`)
+    subscriber.on('message', (channel, text)=>{
+        if(channel===CONNECTION_COUNT_UPDATE_CHANNEL){
+            app.io.emit(CONNECTION_COUNT_UPDATE_CHANNEL, {
+                count:text,
+            });
+            return;
+        };
+
+        if(channel===NEW_MESSAGE_CHANNEL){
+            app.io.emit(NEW_MESSAGE_CHANNEL, {
+                message: text,
+                id: randomUUID(),
+                createdAt: new Date(),
+                port: PORT,
+            });
+            return;
+        }
     });
 
     app.get('/healthcheck', ()=>{

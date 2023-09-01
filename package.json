@@ -1,0 +1,30 @@
+{
+    "name": "server",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node build/main",
+    "build": "tsc -p .",
+    "dev": "tsc-watch --onSuccess \"npm start\""
+  },
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@fastify/cors": "^8.3.0",
+    "close-with-grace": "^1.2.0",
+    "dotenv": "^16.3.1",
+    "fastify": "^4.22.1",
+    "fastify-socket.io": "^4.0.0",
+    "ioredis": "^5.3.2",
+    "socket.io": "^4.7.2",
+    "tsc-watch": "^6.0.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.5.7",
+    "@types/ws": "^8.5.5",
+    "typescript": "^5.2.2"
+  }
+
+}

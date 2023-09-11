@@ -10,7 +10,7 @@ dotenv.config();
 const PORT = parseInt(process.env.PORT || '5555', 10);
 const HOST = process.env.HOST || '0.0.0.0';
 const CORS_ORIGIN = process.env.CORS_ORIGIN || "http://localhost:3000";
-const REDIS_ENDPOINT = process.env.REDIS_ENDPOINT;
+const UPSTASH_REDIS_REST_URL = process.env.UPSTASH_REDIS_REST_URL;
 
 const CONNECTION_COUNT_KEY="chat:connection-count";
 const CONNECTION_COUNT_UPDATE_CHANNEL = 'chat:connection-count-updated';
@@ -23,17 +23,18 @@ const NEW_MESSAGE_CHANNEL= "chat:new-message";
 import { Redis } from 'ioredis';
 import { randomUUID } from 'crypto';
 
-if(!REDIS_ENDPOINT){
+if(!UPSTASH_REDIS_REST_URL){
     console.error('Missing REDIS URL ENDPOINT');
     process.exit(1);
 };
 
-const publisher = new Redis(REDIS_ENDPOINT);
-const subscriber = new Redis(REDIS_ENDPOINT);
+const publisher = new Redis(UPSTASH_REDIS_REST_URL);
+const subscriber = new Redis(UPSTASH_REDIS_REST_URL);
 
 let connectedClients = 0;
 
 async function buildServer(){
+    // creating a fastify instance 
     const app = fastify();
 
     /*Registering CORS policy */
@@ -60,7 +61,7 @@ async function buildServer(){
         await publisher.publish(CONNECTION_COUNT_UPDATE_CHANNEL, String(incrResult));
 
         io.on(NEW_MESSAGE_CHANNEL, async (payload)=>{
-            const message = payload.message;
+            const {message} = payload;
 
             if(!message){
                 return;
@@ -91,7 +92,7 @@ async function buildServer(){
         };
         console.log(`The client is subscribed to ${count} channels`);
     })
-
+    // text means the message passed in the channel
     subscriber.on('message', (channel, text)=>{
         if(channel===CONNECTION_COUNT_UPDATE_CHANNEL){
             app.io.emit(CONNECTION_COUNT_UPDATE_CHANNEL, {
@@ -102,6 +103,7 @@ async function buildServer(){
 
         if(channel===NEW_MESSAGE_CHANNEL){
             app.io.emit(NEW_MESSAGE_CHANNEL, {
+                channelName: channel,
                 message: text,
                 id: randomUUID(),
                 createdAt: new Date(),
